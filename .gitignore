@@ -1,0 +1,13 @@
+# OS files
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Packaged builds and signing keys
+*.zip
+*.crx
+*.pem
+
+# Editors
+.vscode/
+.idea/
