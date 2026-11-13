@@ -65,3 +65,7 @@ The test checks that the output never exceeds the ceiling (including on a sudden
 - `activeTab`: show the current tab's title and icon in the popup
 
 No data leaves your browser.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
