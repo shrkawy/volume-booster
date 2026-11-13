@@ -29,6 +29,8 @@ const els = {
   fav: $('fav'),
   favFallback: $('favFallback'),
   presets: [...document.querySelectorAll('.presets button')],
+  notice: $('notice'),
+  recheck: $('recheck'),
 };
 
 const state = {
@@ -36,9 +38,14 @@ const state = {
   value: 150,
   protect: true,
   active: false,
-  restricted: false,
+  // Why the controls are locked, or null when the tab can be boosted:
+  //   'restricted' – a browser page Chrome won't let extensions capture
+  //   'nomedia'    – no video or audio found on the page
+  lock: null,
   starting: null,
 };
+
+const locked = () => state.lock !== null;
 
 /* ---------- messaging ---------- */
 
@@ -122,10 +129,24 @@ function render() {
   els.protect.setAttribute('aria-checked', String(state.protect));
   document.body.classList.toggle('on', state.active);
 
-  if (!state.restricted) {
-    els.tabSub.textContent = state.active ? `Boosting to ${v}%` : 'Off — turn the dial to boost';
+  if (state.lock === 'restricted') els.tabSub.textContent = "Chrome doesn't allow audio capture here";
+  else if (state.lock === 'nomedia') els.tabSub.textContent = 'No video or audio on this page';
+  else els.tabSub.textContent = state.active ? `Boosting to ${v}%` : 'Off — turn the dial to boost';
+
+  if (!state.active) {
+    const text = state.lock === 'nomedia' ? 'Nothing to boost' : state.lock ? 'Unavailable on this page' : 'Off';
+    setStatus('', text, 0);
   }
-  if (!state.active) setStatus('', state.restricted ? 'Unavailable on this page' : 'Off', 0);
+}
+
+function setLock(lock) {
+  state.lock = lock;
+  const off = locked();
+  els.power.disabled = off;
+  els.dial.setAttribute('aria-disabled', String(off));
+  els.presets.forEach((b) => (b.disabled = off));
+  els.notice.hidden = lock !== 'nomedia';
+  render();
 }
 
 let lastStatusKey = '';
@@ -163,12 +184,12 @@ function setValue(v, fromUser) {
   state.value = v;
   render();
   if (!fromUser) return;
-  if (!state.active && !state.restricted && v > MIN) turnOn();
+  if (!state.active && !locked() && v > MIN) turnOn();
   else syncSettings();
 }
 
 function turnOn() {
-  if (state.restricted || state.active) return Promise.resolve();
+  if (locked() || state.active) return Promise.resolve();
   if (state.starting) return state.starting;
   showError('');
   els.power.classList.add('busy');
@@ -254,7 +275,7 @@ function valueFromPointer(e) {
 function bindDial() {
   const dial = els.dial;
   dial.addEventListener('pointerdown', (e) => {
-    if (state.restricted || e.button !== 0) return;
+    if (locked() || e.button !== 0) return;
     dial.setPointerCapture(e.pointerId);
     setValue(valueFromPointer(e), true);
   });
@@ -264,14 +285,14 @@ function bindDial() {
   dial.addEventListener(
     'wheel',
     (e) => {
-      if (state.restricted) return;
+      if (locked()) return;
       e.preventDefault();
       setValue(state.value + (e.deltaY < 0 ? STEP : -STEP), true);
     },
     { passive: false }
   );
   dial.addEventListener('keydown', (e) => {
-    if (state.restricted) return;
+    if (locked()) return;
     const keys = {
       ArrowUp: state.value + STEP,
       ArrowRight: state.value + STEP,
@@ -307,13 +328,55 @@ function showTab(tab) {
     });
     els.fav.src = tab.favIconUrl;
   }
-  if (tab.url && RESTRICTED.test(tab.url)) {
-    state.restricted = true;
-    els.tabSub.textContent = "Chrome doesn't allow audio capture here";
-    els.power.disabled = true;
-    els.dial.setAttribute('aria-disabled', 'true');
-    els.presets.forEach((b) => (b.disabled = true));
+}
+
+/* ---------- media detection ----------
+ * Runs only when the popup opens (or when "Check again" is pressed): nothing is injected
+ * into pages ahead of time and nothing keeps running, so idle tabs cost no CPU or memory.
+ */
+
+// Injected into the page for a single, read-only look. Must be self-contained.
+function findMedia() {
+  const SEL = 'video, audio';
+  if (document.querySelector(SEL)) return true;
+  // Players that keep their media element inside a shadow root.
+  const walker = document.createTreeWalker(document.documentElement, NodeFilter.SHOW_ELEMENT);
+  for (let n = walker.currentNode, i = 0; n && i < 20000; n = walker.nextNode(), i++) {
+    if (n.shadowRoot && n.shadowRoot.querySelector(SEL)) return true;
   }
+  // Embedded players from other sites can't be looked into, but their frames ask for
+  // fullscreen, autoplay or protected media, and are big enough to watch.
+  for (const f of document.querySelectorAll('iframe')) {
+    if (f.allowFullscreen || /autoplay|encrypted-media|fullscreen/i.test(f.allow || '')) {
+      const r = f.getBoundingClientRect();
+      if (r.width >= 120 && r.height >= 60) return true;
+    }
+  }
+  return false;
+}
+
+async function hasMedia(tabId) {
+  try {
+    // A tab that's already making sound obviously has media (even audio created in code).
+    const tab = await chrome.tabs.get(tabId);
+    if (tab.audible) return true;
+    const run = (allFrames) => chrome.scripting.executeScript({ target: { tabId, allFrames }, func: findMedia });
+    // Some frames can't be scripted; fall back to the top page alone.
+    const results = await run(true).catch(() => run(false));
+    return results.some((r) => r && r.result === true);
+  } catch {
+    return true; // couldn't look inside the page: never block the user because of that
+  }
+}
+
+async function checkMedia() {
+  els.recheck.disabled = true;
+  els.recheck.textContent = 'Checking…';
+  const found = await hasMedia(state.tabId);
+  els.recheck.disabled = false;
+  els.recheck.textContent = 'Check again';
+  setLock(found ? null : 'nomedia');
+  if (found) els.dial.focus();
 }
 
 /* ---------- init ---------- */
@@ -329,6 +392,7 @@ async function init() {
     syncSettings();
   });
   els.presets.forEach((b) => b.addEventListener('click', () => setValue(Number(b.dataset.v), true)));
+  els.recheck.addEventListener('click', checkMedia);
 
   const [[tab], prefs] = await Promise.all([
     chrome.tabs.query({ active: true, currentWindow: true }),
@@ -338,23 +402,28 @@ async function init() {
   if (typeof prefs.protect === 'boolean') state.protect = prefs.protect;
 
   if (!tab) {
-    state.restricted = true;
-    render();
+    setLock('restricted');
     return;
   }
   state.tabId = tab.id;
   showTab(tab);
 
-  if (!state.restricted) {
-    const s = await toBackground('getState').catch(() => null);
-    if (s && s.active) {
-      state.active = true;
-      state.value = Math.round(s.boost * 100);
-      state.protect = s.protect;
-      pollMeter();
-    }
+  if (tab.url && RESTRICTED.test(tab.url)) {
+    setLock('restricted');
+    return;
   }
-  render();
+
+  const s = await toBackground('getState').catch(() => null);
+  if (s && s.active) {
+    // Already boosting, so there's clearly sound: skip detection.
+    state.active = true;
+    state.value = Math.round(s.boost * 100);
+    state.protect = s.protect;
+    pollMeter();
+    render();
+  } else {
+    await checkMedia();
+  }
   els.dial.focus();
 }
 

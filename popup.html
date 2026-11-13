@@ -31,6 +31,15 @@
         <button id="power" class="switch" role="switch" aria-checked="false" aria-label="Boost this tab"></button>
       </section>
 
+      <section id="notice" class="card notice" role="status" hidden>
+        <svg class="notice-icon" viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.5" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m10 9.2 5 2.8-5 2.8z" fill="currentColor"/><path d="M3 3 21 21" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <div class="notice-text">
+          <strong>No video or audio found</strong>
+          <span>Boost works on pages that play sound. Start a video or song, then check again.</span>
+          <button id="recheck" class="link-btn" type="button">Check again</button>
+        </div>
+      </section>
+
       <div id="dial" class="dial" role="slider" tabindex="0" aria-label="Boost level"
            aria-valuemin="100" aria-valuemax="250" aria-valuenow="150" aria-valuetext="150 percent">
         <svg viewBox="0 0 220 200" width="220" height="200" aria-hidden="true">

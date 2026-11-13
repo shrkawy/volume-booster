@@ -12,6 +12,7 @@ Most volume boosters multiply the audio and let it clip: the tops of the wavefor
 - Optional speaker protection that removes sub-30 Hz rumble small speakers can't play
 - Live meter showing how hard the limiter is working
 - Per-tab: each tab keeps its own boost level
+- Detects video and audio: on a page with nothing to play, the controls are disabled and the popup says why
 - Light and dark themes, full keyboard and screen-reader support
 - Lightweight: no frameworks or libraries, about 0.1% of one CPU core during normal playback
 
@@ -45,6 +46,8 @@ tab audio -> high-pass filter -> boost -> compressor -> look-ahead limiter -> sp
 
 **Speaker protection.** A 2nd-order Butterworth high-pass at 30 Hz. Turned off, it moves to 10 Hz and only blocks DC.
 
+**Media detection.** When you click the extension icon, the popup takes one read-only look at the current tab for `<video>` or `<audio>` elements, including inside shadow roots and the page's frames. Embedded players and tabs that are already playing sound also count. If nothing is found, the controls are disabled until you press **Check again**. Nothing is added to pages ahead of time and nothing keeps watching them, so idle tabs cost no CPU or memory.
+
 The audio engine only exists while a tab is boosted. Chrome closes it when you stop, and the meter only runs while the popup is open.
 
 ## Tests
@@ -63,6 +66,7 @@ The test checks that the output never exceeds the ceiling (including on a sudden
 - `offscreen`: run the audio engine in the background
 - `storage`: remember your boost level and settings
 - `activeTab`: show the current tab's title and icon in the popup
+- `scripting`: check the current tab for video or audio when you open the popup
 
 No data leaves your browser.
 

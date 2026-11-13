@@ -1,10 +1,10 @@
 {
   "manifest_version": 3,
   "name": "Clean Volume Booster",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Boost tab volume up to 250% without clipping or distortion. A look-ahead limiter protects sound quality and your speakers.",
   "minimum_chrome_version": "116",
-  "permissions": ["tabCapture", "offscreen", "storage", "activeTab"],
+  "permissions": ["tabCapture", "offscreen", "storage", "activeTab", "scripting"],
   "background": {
     "service_worker": "background.js"
   },
