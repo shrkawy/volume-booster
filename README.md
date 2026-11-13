@@ -70,6 +70,12 @@ The test checks that the output never exceeds the ceiling (including on a sudden
 
 No data leaves your browser.
 
+## Chrome Web Store releases
+
+See [PUBLISHING.md](PUBLISHING.md) for the first store upload and automatic updates from GitHub releases. The workflow builds ZIPs now; store publishing requires developer registration, item IDs, and credentials.
+
+Read the [privacy policy](PRIVACY.md) for data handling and storage details.
+
 ## License
 
 MIT. See [LICENSE](LICENSE).
